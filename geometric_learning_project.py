@@ -1,21 +1,8 @@
 import numpy as np
+import scipy as sp
 from scipy.spatial.distance import pdist, squareform
-from sinkhorn_knopp import sinkhorn_knopp as skp
-import matplotlib.pyplot as plt
 from scipy import optimize
-
-
-def cart2pol(x, y):
-    theta = np.arctan2(y, x)
-    rho = np.hypot(x, y)
-    return theta, rho
-
-
-def pol2cart(theta, rho):
-    x = rho * np.cos(theta)
-    y = rho * np.sin(theta)
-    return x, y
-
+import matplotlib.pyplot as plt
 
 def my_pdist(k, X):
     dist = squareform(pdist(X, metric='euclidean'))
@@ -37,10 +24,21 @@ def knn_graph_adjacency_matrix(k, X):
     return A
 
 
-def knn_bi_stochastic_graph_laplacian(k, A):
+def knn_bi_stochastic_graph_laplacian(A):
     n, n = A.shape
-    sk = skp.SinkhornKnopp(max_iter=2000, epsilon=1e-5)
-    B = sk.fit(A)
+    epsilon = 10**-8
+    Q_i = np.identity(n)
+    Q_i_plus_one = np.diag(A @ np.linalg.pinv(Q_i) @ np.ones(n))
+    for i in range(1000):
+        Q_i = np.diag(A @ np.linalg.pinv(Q_i_plus_one) @ np.ones(n))
+        Q_i_plus_one = np.diag(A @ np.linalg.pinv(Q_i) @ np.ones(n))
+        D = Q_i_plus_one @ Q_i
+
+        B = sp.linalg.fractional_matrix_power(D, -0.5) @ A @ sp.linalg.fractional_matrix_power(D, -0.5)
+        error = (np.abs(B @ np.ones(n) - np.ones(n)) < epsilon).any()
+        if error:
+            return np.identity(n) - B
+
     return np.identity(n) - B
 
 

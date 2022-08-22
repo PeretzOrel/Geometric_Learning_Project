@@ -3,6 +3,7 @@ from numpy import random, linalg
 from scipy.optimize import Bounds
 from scipy.optimize import LinearConstraint
 
+
 def random_ball(num_points, dimension, radius=1):
     random_directions = random.normal(size=(dimension,num_points))
     random_directions /= linalg.norm(random_directions, axis=0)
@@ -24,7 +25,6 @@ def y_axis_rotation(cart_3d_points, phi0):
     cart_3d_points_rotated[:, 1] = cart_3d_points[:, 1]
     cart_3d_points_rotated[:, 2] = - cart_3d_points[:, 0] * np.sin(phi0) + cart_3d_points[:, 2] * np.cos(phi0)
     return cart_3d_points_rotated
-
 
 
 n = 500  # number of points
@@ -52,7 +52,7 @@ A = np.zeros((m, n, n))
 L = np.zeros((m, n, n))
 for i in range(m):
     A[i, :, :] = knn_graph_adjacency_matrix(k, X[i, :, :])
-    L[i, :, :] = knn_bi_stochastic_graph_laplacian(k, A[i, :, :])
+    L[i, :, :] = knn_bi_stochastic_graph_laplacian(A[i, :, :])
 
 
 # fig. 4
@@ -65,15 +65,26 @@ for i in range(m):
 
 # gradient based optimization
 t0 = np.array([0, 0])
-# bounds = Bounds([0, 0], [1, 1])
-# linear_constraint = LinearConstraint([[1, 1], [1, 1]], [-np.inf, -np.inf], [1, 1])
 bounds = ((0, None), (0, None))
 cons = [{'type': 'ineq', 'fun': lambda x:  1 - x[0] - x[1]}]
+# result2 = optimize.minimize(func, t0, args=(L,), bounds=bounds, method='SLSQP', jac=func_grad, options={'disp': True}, constraints=cons)
 
-# result2 = optimize.minimize(func, t0, args=(L,), bounds=bounds, method='trust-constr', jac=func_grad, options={'disp': True}, constraints=cons)
-result2 = optimize.minimize(func, t0, args=(L,), bounds=bounds, method='SLSQP', jac=func_grad, options={'disp': True}, constraints=cons)
-
-t_opt2 = np.append(result2.x, 1 - np.sum(result2.x))
+# t_opt2 = np.append(result2.x, 1 - np.sum(result2.x))
+t_opt2 = [0.15531945, 0.48021447, 0.36446609]
 error2 = error_estimate(L, t_opt2)
+
+# fig 5
+t1 = np.linspace(0, 1, 100)
+t2 = np.linspace(0, 1, 100)
+T1, T2 = np.meshgrid(t1, t2)
+
+Z = np.zeros_like(T1)
+for i in range(T1.shape[0]):
+    for j in range(T1.shape[1]):
+        Z[i, j] = lambda1(L_t(L, (T1[i, j], T2[i, j], 1 - T1[i, j] - T2[i, j])))
+np.save('Z.npy', Z)
+# fig, ax = plt.subplots(1, 1)
+# ax.contour(T1, T2, Z)
+# plt.show(block=False)
 
 print()
