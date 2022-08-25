@@ -3,6 +3,17 @@ import scipy as sp
 from scipy.spatial.distance import pdist, squareform
 from scipy import optimize
 import matplotlib.pyplot as plt
+from functions_time import *
+from sinkhorn_knopp import sinkhorn_knopp as skp
+
+def rotate(x, y, ang):
+    r = np.sqrt(x ** 2 + y ** 2)
+    # theta = np.arctan2(x, y)
+    theta = np.arctan(y / x)
+    x_out = r * np.cos(theta + ang)
+    y_out = r * np.sin(theta + ang)
+    return x_out, y_out
+
 
 def my_pdist(k, X):
     dist = squareform(pdist(X, metric='euclidean'))
@@ -16,7 +27,6 @@ def my_pdist(k, X):
 def knn_graph_adjacency_matrix(k, X):
     n, d = X.shape
     knn_idx, knn_dist = my_pdist(k, X)
-    # construct adjacency matrix A
     A = np.identity(n)
     for i in range(n):
         A[i, knn_idx[:, i]] = 1
@@ -25,21 +35,32 @@ def knn_graph_adjacency_matrix(k, X):
 
 
 def knn_bi_stochastic_graph_laplacian(A):
+    L = np.zeros_like(A)
     n, n = A.shape
-    epsilon = 10**-8
-    Q_i = np.identity(n)
-    Q_i_plus_one = np.diag(A @ np.linalg.pinv(Q_i) @ np.ones(n))
-    for i in range(1000):
-        Q_i = np.diag(A @ np.linalg.pinv(Q_i_plus_one) @ np.ones(n))
-        Q_i_plus_one = np.diag(A @ np.linalg.pinv(Q_i) @ np.ones(n))
-        D = Q_i_plus_one @ Q_i
 
-        B = sp.linalg.fractional_matrix_power(D, -0.5) @ A @ sp.linalg.fractional_matrix_power(D, -0.5)
-        error = (np.abs(B @ np.ones(n) - np.ones(n)) < epsilon).any()
-        if error:
-            return np.identity(n) - B
+    sk = skp.SinkhornKnopp(epsilon=1e-5)
+    B = sk.fit(A)
+    L = np.identity(n) - B
 
-    return np.identity(n) - B
+    # s = tic()
+    # epsilon = 10 ** -5
+    # Q_i = np.identity(n)
+    # Q_i_plus_one = np.diag(A @ np.linalg.pinv(Q_i) @ np.ones(n))
+    # for i in range(1000):
+    #     Q_i = np.diag(A @ np.linalg.pinv(Q_i_plus_one) @ np.ones(n))
+    #     Q_i_plus_one = np.diag(A @ np.linalg.pinv(Q_i) @ np.ones(n))
+    #     D = Q_i_plus_one @ Q_i
+    #
+    #     B = sp.linalg.fractional_matrix_power(D, -0.5) @ A @ sp.linalg.fractional_matrix_power(D, -0.5)
+    #     tmp = np.abs(B @ np.ones(n) - np.ones(n))
+    #     error = (np.abs(B @ np.ones(n) - np.ones(n)) < epsilon)
+    #     if np.all(error == True):
+    #         L = np.identity(n) - B
+    #         break
+    # toc(s)
+
+
+    return L
 
 
 def plt_graph(ax, X, A):
@@ -48,10 +69,10 @@ def plt_graph(ax, X, A):
         edges = np.transpose(np.array(A.nonzero()))
         edges = np.delete(edges, edges[:, 0] == edges[:, 1], axis=0)
 
-        ax.scatter(X[:, 0], X[:, 1], s=20, c="red", edgecolor="red")
+        ax.scatter(X[:, 0], X[:, 1], s=16, c="red", edgecolor="red")
         ax.grid()
         for i in range(0, edges.shape[0], 1):
-            ax.plot([X[edges[i, 0], 0], X[edges[i, 1], 0]], [X[edges[i, 0], 1], X[edges[i, 1], 1]], c='black', linewidth=1)
+            ax.plot([X[edges[i, 0], 0], X[edges[i, 1], 0]], [X[edges[i, 0], 1], X[edges[i, 1], 1]], c='black', linewidth=0.7)
     elif d == 3:
         edges = np.transpose(np.array(A.nonzero()))
         edges = np.delete(edges, edges[:, 0] == edges[:, 1], axis=0)
@@ -59,7 +80,8 @@ def plt_graph(ax, X, A):
         # ax.scatter3D(X[:, 0], X[:, 1], X[:, 2], s=20, c="red", edgecolor="red")
         ax.grid()
         for i in range(0, edges.shape[0], 1):
-            ax.plot3D([X[edges[i, 0], 0], X[edges[i, 1], 0]], [X[edges[i, 0], 1], X[edges[i, 1], 1]], [X[edges[i, 0], 2], X[edges[i, 1], 2]], c='black', linewidth=1)
+            ax.plot3D([X[edges[i, 0], 0], X[edges[i, 1], 0]], [X[edges[i, 0], 1], X[edges[i, 1], 1]], [X[edges[i, 0], 2], X[edges[i, 1], 2]],
+                      c='black', linewidth=0.7)
 
         print()
 
@@ -73,13 +95,13 @@ def sorted_eig(L):
 
 
 def lambda1(L):
-    eig_val, eig_vec = sorted_eig(L)
-    return eig_val[1].real
+    eig_val = sp.linalg.eigh(L, eigvals_only=True, subset_by_index=[1, 1])
+    return eig_val[0]
 
 
 def psi1(L):
-    eig_val, eig_vec = sorted_eig(L)
-    return eig_vec[:, 1].real
+    eig_val, eig_vec = sp.linalg.eigh(L, subset_by_index=[1, 1])
+    return eig_vec.flatten()
 
 
 def S_L(L, x):
@@ -94,17 +116,13 @@ def L_t(L, t):
     return Lt
 
 
-def func(t0, args):
-    L = args
+def func(t0, L):
     t = np.append(t0, 1 - np.sum(t0))
-    # t = np.array([t0, 1 - np.sum(t0)]).flatten()
     return -lambda1(L_t(L, t))
 
 
-def func_grad(t0, args):
-    L = args
+def func_grad(t0, L):
     t = np.append(t0, 1 - np.sum(t0))
-    # t = np.array([t0, 1 - np.sum(t0)]).flatten()
     m, n, n = L.shape
     grad = np.zeros_like(t0)
     for k in range(m - 1):

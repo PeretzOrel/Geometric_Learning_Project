@@ -1,16 +1,10 @@
 import numpy as np
+import scipy as sp
 import matplotlib.pyplot as plt
 from geometric_learning_project import *
+from functions_time import *
 
-
-def rotate_points(cart_2d_points, dtheta):
-    cart_2d_points_rotated = np.zeros_like(cart_2d_points)
-    r = np.sqrt(cart_2d_points[:, 0]**2 + cart_2d_points[:, 1]**2)
-    theta = np.arctan2(cart_2d_points[:, 1], cart_2d_points[:, 0])
-    cart_2d_points_rotated[:, 0] = r * np.cos(theta + dtheta)
-    cart_2d_points_rotated[:, 1] = r * np.sin(theta + dtheta)
-    return cart_2d_points_rotated
-
+s = tic()
 
 n = 250  # number of points
 d = 2  # dim of a point
@@ -26,7 +20,7 @@ X[0, :, :] = np.random.uniform(low=-0.5, high=0.5, size=(n, d))
 
 # create set 2 of points:
 theta = np.random.uniform(low=0, high=2 * np.pi, size=(n,))
-X[1, :, :] = rotate_points(X[0, :, :], theta)
+X[1, :, 0], X[1, :, 1] = rotate(X[0, :, 0], X[0, :, 1], theta)
 
 A = np.zeros((m, n, n))
 L = np.zeros((m, n, n))
@@ -88,5 +82,7 @@ ax[2].set_xlabel('r')
 ax[2].set_ylabel('psi1_L_2')
 
 plt.show(block=False)
+
+toc(s)
 
 print("")
