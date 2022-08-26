@@ -2,7 +2,7 @@ import numpy as np
 import scipy as sp
 import matplotlib.pyplot as plt
 from geometric_learning_project import *
-from functions_time import *
+from functions_time import tic, toc
 
 s = tic()
 
@@ -11,7 +11,7 @@ d = 2  # dim of a point
 m = 2  # number of graphs
 k = 6  # num of neighbors
 
-np.random.seed(1234)  # set fixed seed
+np.random.seed(10)  # set fixed seed
 
 X = np.zeros((m, n, d))
 
@@ -66,17 +66,17 @@ psi1_L_2 = psi1(L[1, :, :])
 
 fig, ax = plt.subplots(1, 3)
 fig.set_size_inches(15, 5)
-ax[0].plot(r[idx], -psi1_L_t_opt[idx], c='black', linewidth=1)
+ax[0].plot(r[idx], psi1_L_t_opt[idx], c='black', linewidth=1)
 ax[0].grid()
 ax[0].set_xlabel('r')
 ax[0].set_ylabel('psi1_L_t_opt')
 
-ax[1].plot(r[idx], -psi1_L_1[idx], c='black', linewidth=1)
+ax[1].plot(r[idx], psi1_L_1[idx], c='black', linewidth=1)
 ax[1].grid()
 ax[1].set_xlabel('r')
 ax[1].set_ylabel('psi1_L_1')
 
-ax[2].plot(r[idx], -psi1_L_2[idx], c='black', linewidth=1)
+ax[2].plot(r[idx], psi1_L_2[idx], c='black', linewidth=1)
 ax[2].grid()
 ax[2].set_xlabel('r')
 ax[2].set_ylabel('psi1_L_2')

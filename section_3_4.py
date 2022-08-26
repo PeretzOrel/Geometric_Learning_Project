@@ -6,7 +6,7 @@ from scipy.optimize import Bounds
 from scipy.optimize import LinearConstraint
 from multiprocessing.pool import ThreadPool
 import matplotlib.cm as cm
-from functions_time import *
+from functions_time import tic, toc
 
 
 def random_ball(num_points, dimension, radius=1):
@@ -34,6 +34,7 @@ X = np.zeros((m, n, d))
 # X[0, :, 1] = r*np.sin(phi)*np.sin(eta)
 # X[0, :, 2] = r*np.cos(phi)
 
+# create set 1 of points:
 X[0, :, :] = random_ball(n, d, radius=1)
 
 # create set 2 of points:
@@ -41,7 +42,7 @@ theta = np.random.uniform(low=0, high=2 * np.pi, size=(n,))
 X[1, :, 0], X[1, :, 1] = rotate(X[0, :, 0], X[0, :, 1], theta)
 X[1, :, 2] = X[0, :, 2]
 
-# create set 2 of points:
+# create set 3 of points:
 phi = np.random.uniform(low=0, high=2 * np.pi, size=(n,))
 X[2, :, 0], X[2, :, 2] = rotate(X[0, :, 0], X[0, :, 2], phi)
 X[2, :, 1] = X[0, :, 1]
@@ -53,27 +54,25 @@ for i in range(m):
     L[i, :, :] = knn_bi_stochastic_graph_laplacian(A[i, :, :])
 
 # fig. 4
-# fig = plt.figure(figsize=plt.figaspect(0.5))
-# for i in range(m):
-#     ax = fig.add_subplot(1, m, i+1, projection='3d')
-#     plt_graph(ax, X[i, :, :], A[i, :, :])
-# plt.show(block=False)
+fig = plt.figure(figsize=plt.figaspect(0.5))
+for i in range(m):
+    ax = fig.add_subplot(1, m, i+1, projection='3d')
+    plt_graph(ax, X[i, :, :], A[i, :, :])
+plt.show(block=False)
 
 
 # gradient based optimization
 t0 = np.array([0, 0])
 bounds = ((0, None), (0, None))
 cons = ({'type': 'ineq', 'fun': lambda x: 1 - np.sum(x)})
-sol = optimize.minimize(func, t0, args=(L,), bounds=bounds, method='SLSQP', jac=func_grad, options={'disp': True, 'ftol': 1e-9}, constraints=cons)
-t_opt2 = np.append(sol.x, 1 - np.sum(sol.x))
+# sol = optimize.minimize(func, t0, args=(L,), bounds=bounds, method='SLSQP', jac=func_grad, options={'disp': True, 'ftol': 1e-9}, constraints=cons)
+# t_opt = np.append(sol.x, 1 - np.sum(sol.x))
 
-# t_opt2 = [0.18606561, 0.37422749, 0.4397069 ]
-error2 = error_estimate(L, t_opt2)
+t_opt = [0.32695363, 0.34234715, 0.33069922]
+error2 = error_estimate(L, t_opt)
 
 # fig 5
-t1_axis = np.linspace(0, 1, 100)
-t2_axis = np.linspace(0, 1, 100)
-T1, T2 = np.meshgrid(t1_axis, t2_axis)
+T1, T2 = np.meshgrid(np.linspace(0, 1, 100), np.linspace(0, 1, 100))
 Z = np.zeros_like(T1)
 Z[Z == 0] = np.NaN
 
@@ -81,13 +80,13 @@ L0 = L[0, :, :] / lambda1(L[0, :, :])
 L1 = L[1, :, :] / lambda1(L[1, :, :])
 L2 = L[2, :, :] / lambda1(L[2, :, :])
 
-for i in range(T1.shape[0]):
-    for j in range(T1.shape[1]):
-        if i+j < T1.shape[0]:
-            Lt = T1[i, j]*L0 + T2[i, j]*L1 + (1 - T1[i, j] - T2[i, j])*L2
-            Z[i, j] = lambda1(Lt)
-
-np.save('Z.npy', Z)
+# for i in range(T1.shape[0]):
+#     for j in range(T1.shape[1]):
+#         if i+j < T1.shape[0]:
+#             Lt = T1[i, j]*L0 + T2[i, j]*L1 + (1 - T1[i, j] - T2[i, j])*L2
+#             Z[i, j] = lambda1(Lt)
+#
+# np.save('Z.npy', Z)
 Z = np.load('Z.npy')
 
 fig, ax = plt.subplots(1, 1)
@@ -99,6 +98,40 @@ ax.clabel(cp, fontsize=10, colors=line_colors)
 plt.xticks([0, 0.5, 1])
 plt.yticks([0, 0.5, 1])
 plt.show(block=False)
+
+# fig 6
+r = np.sqrt(X[0, :, 0] ** 2 + X[0, :, 1] ** 2 + X[0, :, 2] ** 2)
+idx = r.argsort()
+
+psi1_L_t_opt = psi1(L_t(L, t_opt))
+psi1_L_1 = psi1(L[0, :, :])
+psi1_L_2 = psi1(L[1, :, :])
+psi1_L_3 = psi1(L[2, :, :])
+
+fig, ax = plt.subplots(1, 4)
+fig.set_size_inches(15, 5)
+ax[0].plot(r[idx], psi1_L_t_opt[idx], c='black', linewidth=1)
+ax[0].grid()
+ax[0].set_xlabel('r')
+ax[0].set_ylabel('psi1_L_t_opt')
+
+ax[1].plot(r[idx], psi1_L_1[idx], c='black', linewidth=1)
+ax[1].grid()
+ax[1].set_xlabel('r')
+ax[1].set_ylabel('psi1_L_1')
+
+ax[2].plot(r[idx], psi1_L_2[idx], c='black', linewidth=1)
+ax[2].grid()
+ax[2].set_xlabel('r')
+ax[2].set_ylabel('psi1_L_2')
+
+ax[3].plot(r[idx], psi1_L_2[idx], c='black', linewidth=1)
+ax[3].grid()
+ax[3].set_xlabel('r')
+ax[3].set_ylabel('psi1_L_3')
+
+plt.show(block=False)
+
 
 toc(s)
 
