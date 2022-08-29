@@ -3,8 +3,6 @@ import scipy as sp
 from scipy.spatial.distance import pdist, squareform
 from scipy import optimize
 import matplotlib.pyplot as plt
-from functions_time import *
-from sinkhorn_knopp import sinkhorn_knopp as skp
 
 def rotate(x, y, ang):
     r = np.sqrt(x ** 2 + y ** 2)
@@ -25,41 +23,36 @@ def my_pdist(k, X):
 
 
 def knn_graph_adjacency_matrix(k, X):
-    n, d = X.shape
-    knn_idx, knn_dist = my_pdist(k, X)
-    A = np.identity(n)
-    for i in range(n):
-        A[i, knn_idx[:, i]] = 1
-        A[knn_idx[:, i], i] = 1
+    (m, n, d) = X.shape
+    A = np.zeros((m, n, n))
+    for graph_idx in range(m):
+        knn_idx, knn_dist = my_pdist(k, X[graph_idx, :, :])
+        A_tmp = np.identity(n)
+        for i in range(n):
+            A_tmp[i, knn_idx[:, i]] = 1
+            A_tmp[knn_idx[:, i], i] = 1
+        A[graph_idx, :, :] = A_tmp
     return A
 
 
 def knn_bi_stochastic_graph_laplacian(A):
-    L = np.zeros_like(A)
-    n, n = A.shape
+    (m, n, n) = A.shape
+    L = np.zeros((m, n, n))
+    for graph_idx in range(m):
+        epsilon = 10 ** -6
+        Q_i = np.identity(n)
+        Q_i_plus_one = np.diag(A[graph_idx, :, :] @ np.linalg.pinv(Q_i) @ np.ones(n))
+        for i in range(1000):
+            Q_i = np.diag(A[graph_idx, :, :] @ np.linalg.pinv(Q_i_plus_one) @ np.ones(n))
+            Q_i_plus_one = np.diag(A[graph_idx, :, :] @ np.linalg.pinv(Q_i) @ np.ones(n))
+            D = Q_i_plus_one @ Q_i
 
-    sk = skp.SinkhornKnopp(epsilon=1e-5)
-    B = sk.fit(A)
-    L = np.identity(n) - B
-
-    # s = tic()
-    # epsilon = 10 ** -5
-    # Q_i = np.identity(n)
-    # Q_i_plus_one = np.diag(A @ np.linalg.pinv(Q_i) @ np.ones(n))
-    # for i in range(1000):
-    #     Q_i = np.diag(A @ np.linalg.pinv(Q_i_plus_one) @ np.ones(n))
-    #     Q_i_plus_one = np.diag(A @ np.linalg.pinv(Q_i) @ np.ones(n))
-    #     D = Q_i_plus_one @ Q_i
-    #
-    #     B = sp.linalg.fractional_matrix_power(D, -0.5) @ A @ sp.linalg.fractional_matrix_power(D, -0.5)
-    #     tmp = np.abs(B @ np.ones(n) - np.ones(n))
-    #     error = (np.abs(B @ np.ones(n) - np.ones(n)) < epsilon)
-    #     if np.all(error == True):
-    #         L = np.identity(n) - B
-    #         break
-    # toc(s)
-
-
+            B = sp.linalg.fractional_matrix_power(D, -0.5) @ A[graph_idx, :, :] @ sp.linalg.fractional_matrix_power(D, -0.5)
+            error = (np.abs(B @ np.ones(n) - np.ones(n)) < epsilon)
+            L_tmp = np.identity(n) - B
+            if np.all(error):
+                break
+        L[graph_idx, :, :] = L_tmp
     return L
 
 
@@ -69,7 +62,7 @@ def plt_graph(ax, X, A):
         edges = np.transpose(np.array(A.nonzero()))
         edges = np.delete(edges, edges[:, 0] == edges[:, 1], axis=0)
 
-        ax.scatter(X[:, 0], X[:, 1], s=16, c="red", edgecolor="red")
+        ax.scatter(X[:, 0], X[:, 1], s=10, c="black", edgecolor="black")
         ax.grid()
         for i in range(0, edges.shape[0], 1):
             ax.plot([X[edges[i, 0], 0], X[edges[i, 1], 0]], [X[edges[i, 0], 1], X[edges[i, 1], 1]], c='black', linewidth=0.7)
@@ -77,7 +70,7 @@ def plt_graph(ax, X, A):
         edges = np.transpose(np.array(A.nonzero()))
         edges = np.delete(edges, edges[:, 0] == edges[:, 1], axis=0)
 
-        # ax.scatter3D(X[:, 0], X[:, 1], X[:, 2], s=20, c="red", edgecolor="red")
+        ax.scatter3D(X[:, 0], X[:, 1], X[:, 2], s=10, c="black", edgecolor="black")
         ax.grid()
         for i in range(0, edges.shape[0], 1):
             ax.plot3D([X[edges[i, 0], 0], X[edges[i, 1], 0]], [X[edges[i, 0], 1], X[edges[i, 1], 1]], [X[edges[i, 0], 2], X[edges[i, 1], 2]],
